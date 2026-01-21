@@ -1,0 +1,56 @@
+# Save as: docker-compose.yml
+
+version: '3.8'
+
+services:
+  caspar:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=postgresql://caspar:caspar_secret@postgres:5432/caspar_db
+      - LOG_LEVEL=INFO
+      - ENVIRONMENT=development
+    volumes:
+      # Mount for development hot-reload
+      - ./src:/app/src:ro
+      - ./data:/app/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+  # PostgreSQL for conversation persistence
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: caspar
+      POSTGRES_PASSWORD: caspar_secret
+      POSTGRES_DB: caspar_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U caspar -d caspar_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: Redis for horizontal scaling session management
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
